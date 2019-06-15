@@ -1,0 +1,45 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Interface Block: - Tangent space vectors
+in VS_OUT 
+{
+    vec3 FragmentPosition, TangentSpaceLightPosition, TangentSpaceViewPosition, TangentSpaceFragmentPosition;
+    vec2 TextureCoords;
+} fs_in;
+
+// Outputs
+out vec4 FragmentColour;
+
+// Uniforms
+uniform sampler2D diffuseMap, normalMap;
+uniform bool normalMapping;
+
+// First we calculate our normal from the normal map using the texture coordinates passed through by the interface block.
+// We then normalize this vector into an appropriate unit vector normal.
+// We then once again use our texture coordinates, this time sampling the diffuse map instead, we use this along with a constant to form the ambient component.
+// Light direction is found by normalising the distance (subtracting) between the light position and fragment position (both in tangent space).
+// We use this to calculate the base diffuse component, we do this by taking the max (return the greater of two values) of the dot product between the normal and halfway direction.
+// We then find the halfway vector (between the viewer and light-source vectors) by normalising the light and view direction (addition).
+// The specular component (nice aesthetics) is then calculated by taking the power (return the value of the first parameter raised to the power of the second) of the max (return the greater of two values)
+// of the dot product between the normal and halfway direction vectors.
+// Finally we convert this into a vector as apprioriate, and calculate the fragment colour as a combination of all the components.
+void main()
+{           
+    vec3 normal = texture(normalMap, fs_in.TextureCoords).rgb;
+    normal = normalize(normal * 2.0 - 1.0);  // Tangent space normal
+
+    vec3 texColour = texture(diffuseMap, fs_in.TextureCoords).rgb;
+    vec3 ambient = 0.1 * texColour;
+
+    vec3 lightDirection = normalize(fs_in.TangentSpaceLightPosition - fs_in.TangentSpaceFragmentPosition);
+    float diffuse = max(dot(lightDirection, normal), 0.0);
+    vec3 newDiffuse = diffuse * texColour;
+
+    vec3 viewDirection = normalize(fs_in.TangentSpaceViewPosition - fs_in.TangentSpaceFragmentPosition);
+    vec3 halfwayDirection = normalize(lightDirection + viewDirection);  
+    float specular = pow(max(dot(normal, halfwayDirection), 0.0), 32.0);
+    vec3 newSpecular = vec3(0.25) * specular;
+    
+    FragmentColour = vec4(ambient + newDiffuse + newSpecular, 1.0f);
+}

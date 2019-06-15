@@ -1,0 +1,38 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Geometry shader - occurs after vertex shader, before fragment shader:
+// This shader is used to build the depth cubemap in a single render pass.
+
+// Layout Qualifiers - Input
+layout (triangles) in; // 6 input triangles
+
+// Layout Qualifiers - Output
+layout (triangle_strip, max_vertices=18) out; // as we have 6 triangles with 3 verts
+
+// Outputs
+out vec4 FragmentPosition; 
+
+// Uniforms
+uniform mat4 shadowTransforms[6];
+
+// This main allows control over which cubemap face we emit a primitive, as we iterate
+// over the 6 cubemap faces - each time iterating on to a different face.
+// Triangles are then formed by converting the world space vertex to tangent space (light space)
+// this is done by multiplying the fragment position by the shadow transformation matrix.
+// The fragment shader we pass the fragment position to will be calculating the linear depth of the
+// distance between the fragment position and light sources relevant position.
+void main()
+{
+    for(int face = 0; face < 6; ++face)
+    {
+        gl_Layer = face; // which cubemap face to emit a primitive to / render
+        for(int i = 0; i < 3; ++i) 
+        {
+            FragmentPosition = gl_in[i].gl_Position;
+            gl_Position = shadowTransforms[face] * FragmentPosition;
+            EmitVertex(); // khronos: emit a vertex to the first vertex stream
+        }    
+        EndPrimitive(); // khronos: complete the current output primitive on the first vertex stream
+    }
+} 

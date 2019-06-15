@@ -1,0 +1,17 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Inputs
+in vec2 TextureCoords;
+
+// Outputs
+out vec4 fragmentColour;
+
+// Uniforms
+uniform sampler2D instancedTexture;
+
+// Calulate the fragment colour from the textures input coordinates
+void main()
+{
+    fragmentColour = texture(instancedTexture, TextureCoords);
+}

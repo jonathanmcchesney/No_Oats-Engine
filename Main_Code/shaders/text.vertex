@@ -1,0 +1,19 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Layout Qualifiers
+layout (location = 0) in vec4 vertexPosition;
+
+// Outputs
+out vec2 TextureCoords;
+
+// Uniforms
+uniform mat4 projection;
+
+// Set the gl_position to the projection * a vec4 initialised as 0.0f for the z component, as well as initialising 1.0f for the w components respectively.
+// Texture coordinates are set as follows:-
+void main()
+{
+    gl_Position = projection * vec4(vertexPosition.xy, 0.0, 1.0);
+    TextureCoords = vertexPosition.zw;
+}  

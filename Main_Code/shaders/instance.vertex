@@ -1,0 +1,21 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Layout Qualifiers
+layout (location = 0) in vec3 position;
+layout (location = 2) in vec2 textureCoords;
+layout (location = 3) in mat4 instance_matrix;
+
+// Outputs
+out vec2 TextureCoords;
+
+// Unifroms
+uniform mat4 projection, view, model;
+
+// We calculate the mvp matrix as normal to find our gl_position but before we multiply the MVP matrix by the vec4 of our position xyz (with 1.0f as initialised w),
+// we times the result by the instance matrix passed in value (mat4). We then find the texture coordinates as appropriate.
+void main()
+{
+    gl_Position = (projection * view * model) * instance_matrix * vec4(position, 1.0f); 
+    TextureCoords = textureCoords;
+}

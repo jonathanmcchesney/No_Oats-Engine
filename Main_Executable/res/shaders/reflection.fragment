@@ -1,0 +1,35 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Inputs
+in vec3 Normal, Position;
+in vec2 TextureCoords;
+
+// Outputs
+out vec4 fragmentColour;
+
+// Uniforms
+uniform vec3 cameraPos;
+uniform sampler2D texture_diffuse, texture_reflection;
+uniform samplerCube skybox;
+
+// We calculate the diffuse component from the input texture coordinates from of the diffuse texture map.
+// Next the incidence ray is calculated by normalizing the Position vector minue the camera position vector.
+// The resulting reflection ray is calculated by using the reflect func between the incidence ray and the normalised normal vector.
+// The intensity float is calculated from the texture reflection map using the texture coordinates.
+// Finally the reflection vector is instantiated based on an intensity value of 0.1, if greater than this value, then
+// we find the use the multiply the position of the skybox map from the reflection ray times the intensity value.
+// Returning the fragment colour as a result (diffuse + reflection component).
+void main()
+{             
+    vec4 diffuse = texture(texture_diffuse, TextureCoords);
+    vec3 incidenceRay = normalize(Position - cameraPos);
+    vec3 reflectionRay = reflect(incidenceRay, normalize(Normal));
+    float intensity = texture(texture_reflection, TextureCoords).r;
+
+    vec4 reflection;
+    if(intensity > 0.1) // Threshold value restricition
+        reflection = texture(skybox, reflectionRay) * intensity * 2.2; // make it MORE reflective
+
+    fragmentColour = diffuse + reflection;
+}

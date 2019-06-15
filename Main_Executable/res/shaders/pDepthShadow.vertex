@@ -1,0 +1,14 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Layout Qualifiers - Inputs
+layout (location = 0) in vec3 position;
+
+// Uniforms
+uniform mat4 model;
+
+// Calculate the gl_position by multiplying the model matrix by the posisiton vector with the w component initialised to 1.0f.
+void main()
+{
+    gl_Position = model * vec4(position, 1.0); // convert to world space
+}

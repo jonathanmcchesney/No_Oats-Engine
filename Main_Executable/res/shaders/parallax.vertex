@@ -1,0 +1,40 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Layout Qualifier for the vector position, nomral, texture coordinate, tangent and bitangent (forming the TBN matrix), locations 0 to 4
+layout (location = 0) in vec3 position;
+layout (location = 1) in vec3 normal;
+layout (location = 2) in vec2 texCoords;
+layout (location = 3) in vec3 tangent;
+layout (location = 4) in vec3 bitangent;
+
+// Interface Block - Passing the following to the fragment shader
+// Returned Fragment position, [light position, view position, frag position (all in tnagent space) ] as well as the texture coordinates.
+out VS_OUT 
+{
+    vec3 FragmentPosition, TangentSpaceLightPosition, TangentSpaceViewPosition, TangentSpaceFragmentPosition;
+    vec2 TextureCoords;
+} vs_out;
+
+// Uniforms for the MVP, as well as the light and view Positions
+uniform mat4 projection, view, model;
+uniform vec3 lightPos, viewPos;
+
+// Main method for the parallax vertex Shader.
+// Set the gl_Position by multiplying the MVP matricies by a vec 4 with xyz components from positon and the w component set to 1.0f.
+// Send the relevant texture coordinates and fragment position along to the fragment shader via the Interface Block.
+void main()
+{
+    gl_Position = projection * view * model * vec4(position, 1.0f);
+    vs_out.FragmentPosition = vec3(model * vec4(position, 1.0)); 
+	vs_out.TextureCoords = texCoords;      
+    
+	// Tangent, Bitangent, Normal - forms the TBN matrix - transpose the matrix (orthogonal) as its more efficent than the inverse.
+	// Make sure to normalize to convert to unit vector (times the model matrix by the T & B & N respectively), transpose their combination.
+	// Send the result to the output of the interface block - will be passed to the interface block of the parralax fragment (Parallax Occlusion)
+	// Multiply each of the positions by the TBN matrix to convert them to tangent space for the fragment shader.
+    mat3 TBN = transpose(mat3(normalize(mat3(model) * tangent), normalize(mat3(model) * bitangent), normalize(mat3(model) * normal)));  
+    vs_out.TangentSpaceFragmentPosition  = TBN * vs_out.FragmentPosition;
+    vs_out.TangentSpaceViewPosition  = TBN * viewPos;
+    vs_out.TangentSpaceLightPosition = TBN * lightPos;
+}

@@ -1,0 +1,17 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Inputs
+in vec3 TextureCoords;
+
+// Output - fragment colour
+out vec4 fragmentColour;
+
+// Uniforms
+uniform samplerCube texSkybox;
+
+// Simply calculate the output fragment colour by using the relevant texture coordinates of the skybox texture.
+void main()
+{
+    fragmentColour = texture(texSkybox, TextureCoords);
+}

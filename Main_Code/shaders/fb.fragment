@@ -1,0 +1,108 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Inputs
+in vec2 TextureCoords;
+
+// Outputs
+out vec4 fragmentColour;
+
+// Uniforms
+uniform sampler2D tex;
+
+// Constants
+const float offset = 1.0 / 300;  
+
+// This is the main method for using post processing convolution kernels. Firstly we create a selection of nine vectors (vec2).
+// This creates a 9 x 9 grid of vectors. ( in reality they are stored in an array from value 0 to 9 ). These act as our offset vectors.
+// Next we can use the convolution kernel we desire to create some awesome post processing effects. 
+// Each kernel consists of 9 values, if you add up all these values most of the time they total 1 (when they total 1 the brigtness remains unchanged).
+// If the total is greater than or less than 1, then the result will be brighter or darker respectively.
+// By trying different combinations of values we can achive a sharpening effect, blur effect etc.
+void main()
+{
+    vec3 sampleTextureValue[9], column = vec3(0.0);
+
+    vec2 offsetValues[9] = vec2[](	// t = top / m = middle  / b = bottom
+        vec2(-offset, offset),  // t-left
+        vec2(0.0f,    offset),  // t-center
+        vec2(offset,  offset),  // t-right
+        vec2(-offset, 0.0f),    // m-left
+        vec2(0.0f,    0.0f),    // m-center
+        vec2(offset,  0.0f),    // m-right
+        vec2(-offset, -offset), // b-left
+        vec2(0.0f,    -offset), // b-center
+        vec2(offset,  -offset)  // b-right    
+    );
+
+	float convolution_kernel[9] = float[](
+        0, 0, 0,
+        0, 1, 0,
+        0, 0, 0
+    );
+
+	/*
+	// Sharpen
+    float convolution_kernel[9] = float[](
+        -1, -1, -1,
+        -1,  9, -1,
+        -1, -1, -1
+    );
+
+	// Blur
+	float convolution_kernel[9] = float[](
+    1.0 / 16, 2.0 / 16, 1.0 / 16,
+    2.0 / 16, 4.0 / 16, 2.0 / 16,
+    1.0 / 16, 2.0 / 16, 1.0 / 16  
+	);
+	
+	// Edge Detection
+	float convolution_kernel[9] = float[](
+    1.0 / 1, 1.0 / 1, 1.0 / 1,
+    1.0 / 1, -8.0 / 1, 1.0 / 1,
+    1.0 / 1, 1.0 / 1, 1.0 / 1  
+	);
+	*/
+
+    // Finally we are able to create our sample vectors which iterate over all 9 values. At each value we calculate the sample value by taking
+	// the relevant offset into consideration when calculating the texture (using coordinates). Finaly we use the convolution kernel values to 
+	// alter the sampled texture value appropriately for each column value. We then output the fragment Colour.
+    for(int i = 0; i < 9; i++)
+        sampleTextureValue[i] = vec3(texture(tex, TextureCoords.st + offsetValues[i]));
+
+    for(int i = 0; i < 9; i++)
+        column += sampleTextureValue[i] * convolution_kernel[i];
+    
+
+    fragmentColour = vec4(column, 1.0);
+}  
+
+// Alternative Main methods developed
+/*
+void main()
+{ 
+    fragmentColour = texture(tex, TextureCoords);
+}
+
+// Colour Inversion
+void main()
+{
+    fragmentColour = vec4(vec3(1.0 - texture(tex, TextureCoords)), 1.0);
+}  
+
+// Greyscale
+void main()
+{
+    fragmentColour = texture(tex, TextureCoords);
+    float avgValue = (fragmentColour.r + fragmentColour.g + fragmentColour.b) / 3.0;
+    fragmentColour = vec4(avgValue, avgValue, avgValue, 1.0);
+}  
+
+// Greyscale 2.0
+void main()
+{
+    fragmentColour = texture(tex, TextureCoords);
+    float avgValue = 0.2126 * fragmentColour.r + 0.7152 * fragmentColour.g + 0.0722 * fragmentColour.b;
+    fragmentColour = vec4(avgValue, avgValue, avgValue, 1.0);
+}  
+*/

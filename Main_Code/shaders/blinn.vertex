@@ -1,0 +1,28 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Layout Qualifiers
+layout (location = 0) in vec3 position;
+layout (location = 1) in vec3 normal;
+layout (location = 2) in vec2 texCoords;
+
+// Interface Block - easier to manage
+out VS_OUT {
+    vec3 FragmentPosition, Normal;
+    vec2 TextureCoords;
+} vs_out;
+
+// Uniforms
+uniform mat4 view, projection;
+
+// We set the gl_position similar to in other shaders, by multiplying the projection by view as well as the
+// vec4 with postion (xyz components) and 1.0f (w component). We then set the values of the fragment position
+// normal and texture coordinates in the interface block to be passed on to the fragment shader (interface
+// block with the same name).
+void main()
+{
+    gl_Position = projection * view * vec4(position, 1.0f);
+    vs_out.FragmentPosition = position;
+    vs_out.Normal = normal;
+    vs_out.TextureCoords = texCoords;
+}

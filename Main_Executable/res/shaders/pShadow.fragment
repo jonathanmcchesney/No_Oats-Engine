@@ -1,0 +1,74 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Layout Qualifiers - Inputs
+in VS_OUT 
+{
+    vec3 FragmentPosition, Normal;
+    vec2 TextureCoords;
+} fs_in;
+
+// Outputs
+out vec4 FragmentColour;
+
+// Uniforms
+uniform sampler2D diffuseTexture;
+uniform samplerCube depthMap;
+uniform float far_plane;
+uniform bool shadows;
+uniform vec3 lightPos, viewPos;
+
+//
+vec3 offsetValues[20] = vec3[]
+(
+   vec3(1, 1, 1), vec3(1, -1, 1), vec3(-1, -1, 1), vec3(-1, 1, 1), 
+   vec3(1, 1, -1), vec3(1, -1, -1), vec3(-1, -1, -1), vec3(-1, 1, -1),
+   vec3(1, 1, 0), vec3(1, -1, 0), vec3(-1, -1, 0), vec3(-1, 1, 0),
+   vec3(1, 0, 1), vec3(-1, 0, 1), vec3(1, 0, -1), vec3(-1, 0, -1),
+   vec3(0, 1, 1), vec3(0, -1, 1), vec3(0, -1, -1), vec3(0, 1, -1)
+);
+
+//
+float CalculateShadow(vec3 fragmentPosition)
+{
+    vec3 fragmentToLightVector = fragmentPosition - lightPos;
+    float currentDepthValue = length(fragmentToLightVector), shadow = 0.0, bias = 0.17;
+    int sampleNumber = 20;
+    float viewDistance = length(viewPos - fragmentPosition);
+    float offsetRadius = (1.0 + (viewDistance / far_plane)) / 25.0;
+    for(int i = 0; i < sampleNumber; ++i)
+    {
+        float closestDepthValue = texture(depthMap, fragmentToLightVector + offsetValues[i] * offsetRadius).r;
+        closestDepthValue *= far_plane;   
+        if(currentDepthValue - bias > closestDepthValue)
+            shadow += 1.0;
+    }
+    shadow /= float(sampleNumber);
+                
+    return shadow;
+}
+
+//
+void main()
+{           
+    vec3 colour = texture(diffuseTexture, fs_in.TextureCoords).rgb;
+    vec3 normal = normalize(fs_in.Normal);
+    vec3 baseColour = vec3(0.3);
+    vec3 ambient = 0.3 * colour;
+
+    vec3 lightDirection = normalize(lightPos - fs_in.FragmentPosition);
+    float diffuse = max(dot(lightDirection, normal), 0.0);
+    vec3 newDiffuse = diffuse * baseColour;
+
+    vec3 viewDirection = normalize(viewPos - fs_in.FragmentPosition);
+    vec3 reflecttionDirection = reflect(-lightDirection, normal);
+    float specular = 0.0;
+    vec3 halfwayDirection = normalize(lightDirection + viewDirection);  
+    specular = pow(max(dot(normal, halfwayDirection), 0.0), 64.0);
+    vec3 newSpecular = specular * baseColour;    
+
+    float shadow = shadows ? CalculateShadow(fs_in.FragmentPosition) : 0.0;                      
+    vec3 lighting = (ambient + (1.0 - shadow) * (newDiffuse + newSpecular)) * colour;    
+    
+    FragmentColour = vec4(lighting, 1.0f);
+}

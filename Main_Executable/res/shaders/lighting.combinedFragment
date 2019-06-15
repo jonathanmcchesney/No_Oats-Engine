@@ -1,0 +1,188 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+#define CURRENT_NUMBER_OF_POINT_LIGHTS 4 // change this value to whats appropriate
+
+// Inputs - Frag position & normal vectors as well as texture coordinates.
+in vec3 FragmentPosition, Normal;
+in vec2 TextureCoords;
+
+// Outputs - Colour vector
+out vec4 fragmentColour;
+
+// Structs must have at least one member declaration - group of data elements grouped together under one name. 
+// This struct contains the material data elements, i.e. the associated diffuse, specular and emission maps as well as a degree of shininess (specular).
+struct Material
+{
+    sampler2D diffuse, specular, emission;
+    float shininess;
+};
+
+// This structure contains the directional light data elements - ambient diffuse & specular components - Phong. As well as the vector direction.
+struct DirectionalLight
+{
+    vec3 direction,ambient,diffuse,specular;
+};
+
+// This structure contains the point light data elements - ambient diffuse & specular components - Phong. As well as the vector position.
+// This struct also contains floats for the constant, linear and quadratic components when resolving its influence on the scene.
+struct PointLight
+{
+    vec3 position,ambient,diffuse,specular;
+    float constant,linear,quadratic;
+};
+
+// This structure contains the flashlight data elements -  ambient diffuse & specular components - Phong. As well as the vectors direction & position.
+// This struct also contains floats for the constant, linear and quadratic components when resolving its influence on the scene. As well as the cut off regions
+// around the edges of the destination - smoother and more aesthetically pleasing.
+struct FlashLight
+{
+    vec3 position,direction,ambient,diffuse,specular;
+    float cutOff,outerCutOff,constant,linear,quadratic;
+};
+
+// Uniform values - a uniform is created for each struct as well as the view direction.
+uniform Material material;
+uniform DirectionalLight directionalLight;
+uniform PointLight pointLights[CURRENT_NUMBER_OF_POINT_LIGHTS];
+uniform FlashLight spotLight;
+uniform vec3 viewPosition;
+
+// This resolves the directional light component - parallel light with a far origin.
+// The light direction is found by normalising (unit vector conversion) the inverse of the directional light direction - diffusion.
+// The diffuse component is calculated by taking the max (returns the highest value between 0 and ->) of the dot product of between the normal vector and the light direction.
+// The reflection direction vector is found by using the reflect func (calculating the reflection direction for an incident vector) between the inverse of the light direction (normalised directional light direction) and the normal.
+// The specular component is found by resolving the power (return the value of the first parameter raised to the power of the second - shininess) of the max of the dot product between the view direction and the reflection direction.
+// The ambient, diffuse and specular final vectors are then found by using the struct values set and multipling them with the resolved texture value of the appropiate map, finally multiplied by the diffuse or specular component.
+// The combined result is then returned to the main.
+vec3 CalculateDirectionalLight( DirectionalLight directional_light, vec3 normal, vec3 viewDirection )
+{
+	// Diffuse component.
+    vec3 lightDirection = normalize( -directional_light.direction ); // nomalize inverse of the light direction
+    float diffuse = max( dot( normal, lightDirection ), 0.0 );
+    
+	// Specular component.
+    vec3 reflectionDirection = reflect( -lightDirection, normal );
+    float specular = pow( max( dot( viewDirection, reflectionDirection ), 0.0 ), material.shininess );
+    
+	vec3 halfwayDirection = normalize(lightDirection + viewDirection);  
+        //specular = pow(max(dot(normal, halfwayDirection), 0.0), 32.0);
+
+	// Resolving ambient, diffuse and specular final values.
+    vec3 ambient = directional_light.ambient * vec3( texture( material.diffuse, TextureCoords ) );
+    vec3 newDiffuse = directional_light.diffuse * vec3( texture( material.diffuse, TextureCoords ) * diffuse);
+    vec3 newSpecular = directional_light.specular * vec3( texture( material.specular, TextureCoords ) * specular);
+    
+	// Combined result
+    return ( ambient + newDiffuse + newSpecular);
+}
+
+// This resolves the point light component - light source which illuminates in all directions.
+// The light direction is found by normalising (unit vector conversion) the difference between the point light position and fragment position - diffusion.
+// The diffuse component is calculated by taking the max (returns the highest value between 0 and ->) of the dot product of between the normal vector and the light direction.
+// The reflection direction vector is found by using the reflect func (calculating the reflection direction for an incident vector) between the inverse of the light direction (normalised directional light direction) and the normal.
+// The specular component is found by resolving the power (return the value of the first parameter raised to the power of the second - shininess) of the max of the dot product between the view direction and the reflection direction.
+// Distance and attenuation floats are calculated using the length (returns length of the vector) func to dind the distance between the point lights position and fragment position. This distance is then used to find the attenuation float - 
+// reduction of light intensity over distance
+// The ambient, diffuse and specular final vectors are then found by using the struct values set and multipling them with the resolved texture value of the appropiate map, finally multiplied by the diffuse or specular component.
+// This time the attenuation value impoacts the strength of the components depending on the distance i.e. something further away should be less in light than an object close to the light source.
+// The combined result is then returned to the main.
+vec3 CalculatePointLight( PointLight point_light, vec3 normal, vec3 FragmentPosition, vec3 viewDirection )
+{
+	// Diffuse component
+    vec3 lightDirection = normalize( point_light.position - FragmentPosition ); // normalize accordingly
+    float diffuse = max( dot( normal, lightDirection ), 0.0 );
+    
+	// Specular component
+    vec3 reflectionDirection = reflect( -lightDirection, normal );
+    float specular = pow( max( dot( viewDirection, reflectionDirection ), 0.0 ), material.shininess );
+
+	vec3 halfwayDirection = normalize(lightDirection + viewDirection);  
+        //specular = pow(max(dot(normal, halfwayDirection), 0.0), 32.0);
+    
+	// Attenuation component
+    float distance = length( point_light.position - FragmentPosition );
+	float distanceSqu = distance * distance; // distance squared
+    float attenuationValue = 1.0f / ( point_light.constant + point_light.linear * distance + point_light.quadratic * distanceSqu);
+    
+	// Phong lighting model
+    vec3 ambient = point_light.ambient * vec3( texture( material.diffuse, TextureCoords ) );
+    vec3 newDiffuse = point_light.diffuse * vec3( texture( material.diffuse, TextureCoords ) * diffuse);
+    vec3 newSpecular = point_light.specular * vec3( texture( material.specular, TextureCoords ) * specular);
+    
+	// The result of the attenuation value
+    ambient *= attenuationValue; newDiffuse *= attenuationValue; newSpecular *= attenuationValue;
+    
+	// Combined result
+    return ( ambient + newDiffuse + newSpecular ); // return the additions
+}
+
+// This resolves the flashlight (spotlight) component - light source which illuminates an area in front of the camera.
+// The light direction is found by normalising (unit vector conversion) the difference between the flash light position and fragment position - diffusion.
+// The diffuse component is calculated by taking the max (returns the highest value between 0 and ->) of the dot product of between the normal vector and the light direction.
+// The reflection direction vector is found by using the reflect func (calculating the reflection direction for an incident vector) between the inverse of the light direction (normalised directional light direction) and the normal.
+// The specular component is found by resolving the power (return the value of the first parameter raised to the power of the second - shininess) of the max of the dot product between the view direction and the reflection direction.
+// Distance and attenuation floats are calculated using the length (returns length of the vector) func to dind the distance between the flash lights position and fragment position. This distance is then used to find the attenuation float - 
+// reduction of light intensity over distance. the constant, linear and quadratic values are used here - i.e. quadratic term is multiplied with the quadrant of the distance and sets a quadratic decrease of intensity for the light source.
+// floats intensity and intensityValue are then calculated as appropriate to find the cut off points of the inner and outer sections fot the spot light.
+// They are found by taking the dot product of the light direction and normalised inverse of the flashlights direction as well as the difference of the cut out regions.
+// They are then clamped (constrain a value to lie between two further values) the difference between the intensity and out region divided by the difference between the regions - clamped between 0 and 1.
+// The ambient, diffuse and specular final vectors are then found by using the struct values set and multipling them with the resolved texture value of the appropiate map, finally multiplied by the diffuse or specular component.
+// An emission component was also initially included here by this functionality was stripped out due to time constraints.
+// This time the attenuation value impoacts the strength of the components depending on the distance i.e. something further away should be less in light than an object close to the light source.
+// The combined result is then returned to the main.
+vec3 CalculateFlashLight( FlashLight flash_light, vec3 normal, vec3 FragmentPosition, vec3 viewDirection )
+{
+	// Diffuse Component
+    vec3 lightDirection = normalize( flash_light.position - FragmentPosition ); // Normalizee
+    float diffuse = max( dot( normal, lightDirection ), 0.0 );
+    
+	// Specular Component
+    vec3 reflectionDirection = reflect( -lightDirection, normal );
+    float specular = pow( max( dot( viewDirection, reflectionDirection ), 0.0 ), material.shininess );
+	
+	vec3 halfwayDirection = normalize(lightDirection + viewDirection);  
+        // specular = pow(max(dot(normal, halfwayDirection), 0.0), 32.0);
+    
+	// Finding the Attenuation and Intensity
+    float distance = length( flash_light.position - FragmentPosition );
+	float distanceSqu = distance * distance; // distance squared
+    float attenuationValue = 1.0f / ( flash_light.constant + flash_light.linear * distance + flash_light.quadratic * distanceSqu);
+    float intensity = dot( lightDirection, normalize( -flash_light.direction ) );
+    float intensityDifference = flash_light.cutOff - flash_light.outerCutOff;
+    float intensityValue = clamp(( intensity - flash_light.outerCutOff ) / intensityDifference, 0.0, 1.0 );
+    
+	// Phong lighting model - with the use of an emission map
+    vec3 ambient = flash_light.ambient * vec3( texture( material.diffuse, TextureCoords ) );
+    vec3 newDiffuse = flash_light.diffuse  * vec3( texture( material.diffuse, TextureCoords ) * diffuse);
+    vec3 newSpecular = flash_light.specular * vec3( texture( material.specular, TextureCoords ) * specular);
+	vec3 emission = vec3(texture(material.emission, TextureCoords));
+
+	// Deal with the attenuation value and intensity value
+    ambient *= attenuationValue * intensityValue; newDiffuse *= attenuationValue * intensityValue; newSpecular *= attenuationValue * intensityValue;
+    
+	// Return the combination of components
+    return ( ambient + newDiffuse + newSpecular + emission );
+}
+
+// This is the main method that is the trigger for resolving the light components for our various types of light and different materials.
+// The normal vector is calculated by normalising the input Normal (normalising converts into a unit vector).
+// The view direction is resolved by normalising the difference between the view position and the fragment position.
+// The light is instantiated and calculated partly by resolcing the directional light component (offscreen source), then all the point lights attributes are resolved
+// and finally the flashlight (spotlight) light component is resolved the find our final light.
+// We then set our fragment colour as appropriate (as a vec4 with the w component set to 1.0f).
+void main( )
+{
+    vec3 normal = normalize( Normal );
+    vec3 viewDirection = normalize( viewPosition - FragmentPosition );
+    
+    vec3 light = CalculateDirectionalLight( directionalLight, normal, viewDirection );
+    
+    for ( int i = 0; i < CURRENT_NUMBER_OF_POINT_LIGHTS; i++ )
+        light += CalculatePointLight( pointLights[i], normal, FragmentPosition, viewDirection ); // calculate the result from the normal, fragment position and view direction
+  
+    light += CalculateFlashLight( spotLight, normal, FragmentPosition, viewDirection );
+    
+	// Finally return our fragment colour
+    fragmentColour = vec4( light, 1.0 ); 
+}

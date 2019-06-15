@@ -1,0 +1,32 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Layout Qualifiers
+layout (location = 0) in vec3 position;
+layout (location = 1) in vec3 normal;
+layout (location = 2) in vec2 textureCoords;
+
+// Interface Block - tangent space fragment position etc.
+out VS_OUT {
+    vec3 FragmentPosition, Normal;
+    vec2 TextureCoords;
+    vec4 FragmentPositionTangentSpace;
+} vs_out;
+
+// Uniforms
+uniform mat4 projection, view, model, lightSpaceMatrix;
+
+// Calculate the gl_position using MVP and use the vec4 Position to instantiate the w component to 1.0f.
+// We calculate the fragment position to send to the fragment shader (via the interface block) by multiplying the model matrix by the Position vector.
+// Similar to this we calculate the normal vector by transposing the inverse of the model matrix (orthogonal only) multiplied by the normal.
+// The fragment position is then converted into tangent space and sent as appropriate to the interface block.
+// Finally we sent the texture coordinates on to the interface block using the input coordinates.
+void main()
+{
+	vec4 Position = vec4(position, 1.0f);
+    gl_Position = (projection * view * model) * Position;
+    vs_out.FragmentPosition = vec3(model * Position);
+    vs_out.Normal = transpose(inverse(mat3(model))) * normal;
+    vs_out.FragmentPositionTangentSpace = lightSpaceMatrix * vec4(vs_out.FragmentPosition, 1.0);
+    vs_out.TextureCoords = textureCoords;
+}

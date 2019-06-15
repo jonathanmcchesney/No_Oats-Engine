@@ -1,0 +1,20 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Inputs
+in vec2 TextureCoords;
+
+// Outputs
+out vec4 fragmentColour;
+
+// Uniforms
+uniform sampler2D tex;
+
+// Greyscale 2.0 - This method simple calculates the fragment colour from the texture coordinats input, finds an average value of the rbg and then uses these values
+// to create a more aesthetically plausible greyscale post processing effect on the screen.
+void main()
+{
+    fragmentColour = texture(tex, TextureCoords);
+    float avgValue = 0.2 * fragmentColour.r + 0.7 * fragmentColour.g + 0.07 * fragmentColour.b;
+    fragmentColour = vec4(avgValue, avgValue, avgValue, 1.0);
+}  

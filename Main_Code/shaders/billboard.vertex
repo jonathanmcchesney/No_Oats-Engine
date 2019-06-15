@@ -1,0 +1,36 @@
+#version 330 core
+layout (location = 0) in vec3 position;
+layout (location = 1) in vec3 color;
+layout (location = 2) in vec2 texCoord;
+
+out vec3 ourColor;
+out vec2 TexCoord;
+
+uniform mat4 projection;
+uniform mat4 view;
+uniform mat4 model;
+
+uniform vec3 CameraRight_worldspace;
+uniform vec3 CameraUp_worldspace;
+
+uniform vec3 BillboardPos; // Position of the center of the billboard
+uniform vec2 BillboardSize; // Size of the billboard, in world units (probably meters)
+
+
+void main()
+{
+	vec3 particleCenter_wordspace = BillboardPos;
+
+	vec3 vertexPosition_worldspace = 
+		particleCenter_wordspace
+		+  CameraRight_worldspace * position.x * BillboardSize.x
+		+ CameraUp_worldspace * position.y * BillboardSize.y;
+
+	gl_Position = projection * view * vec4(vertexPosition_worldspace, 1.0f);
+	
+	
+	ourColor = color;
+	// We swap the y-axis by substracing our coordinates from 1. This is done because most images have the top y-axis inversed with OpenGL's top y-axis.
+	// TexCoord = texCoord;
+	TexCoord = vec2(texCoord.x, 1.0 - texCoord.y);
+}

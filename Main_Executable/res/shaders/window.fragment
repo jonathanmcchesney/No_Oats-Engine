@@ -1,0 +1,18 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Inputs
+in vec2 TextureCoords;
+
+// Outputs
+out vec4 FragmentColour;
+
+//Uniforms
+uniform sampler2D tex;
+
+// Simple fragment shader to calculate and return the fragment colour by using the texture coordinates passed in from
+// tex (texture sampler2D uniform).
+void main()
+{             
+	FragmentColour = texture(tex, TextureCoords);
+}

@@ -1,0 +1,8 @@
+#version 330 core
+// Created By Jonathan McChesney
+
+// No need to explictly set the main
+void main()
+{ 
+	// empty - can explicitly set the colour, but not necessary
+} 

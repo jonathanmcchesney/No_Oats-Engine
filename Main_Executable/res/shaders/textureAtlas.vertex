@@ -1,0 +1,32 @@
+#version 330 core
+//Created by Erin Hughes
+
+//layout qualifiers
+layout (location = 0) in vec3 position;
+layout (location = 1) in vec2 texCoords;
+
+//output
+out vec2 TexCoords;
+
+//uniforms
+uniform mat4 model, view, projection;
+uniform float numberOfRows;
+uniform vec2 offset;
+
+//main function
+void main()
+{
+	//setting gl_Position to the projection * view * model matrices, and then multiply that by a vec4 with position as its xyz values and 1.0f as its w value
+	gl_Position = projection * view * model * vec4(position, 1.0f);
+
+	//calculating the coordinates of the current frame to be drawn
+
+	//set temporary coordinates
+	vec2 tempCoords = vec2(texCoords.x, 1 - texCoords.y);
+	
+	//divide the temporary coordinates by the number of rows, and then add the offset (rows and offset are read in as uniforms)
+	tempCoords = (tempCoords/numberOfRows) + offset;
+	
+	//output the resulting coordinates
+	TexCoords = vec2(tempCoords.x, tempCoords.y);
+}

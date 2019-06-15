@@ -1,0 +1,20 @@
+#version 330 core
+
+//Created by Erin Hughes
+
+//input
+in vec2 TexCoords;
+
+//output
+out vec4 colour;
+
+//uniforms
+uniform vec4 customColour;
+uniform sampler2D myTexture;
+
+//main function
+void main()
+{
+	//the output colour is a combination of the customColour uniform (randomly generated for each particle) and the texture
+   colour = vec4(customColour.x, customColour.y, customColour.z, customColour.w) * texture(myTexture, TexCoords);
+} 

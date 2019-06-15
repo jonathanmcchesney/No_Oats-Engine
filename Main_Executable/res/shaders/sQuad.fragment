@@ -1,0 +1,19 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Outputs
+out vec4 colour;
+
+// Inputs
+in vec2 TextureCoords;
+
+// Uniforms
+uniform sampler2D depthMap;
+
+// Calculate the depth value from the depth map using the passed through texture coordinates, set the colour using the depth values.
+// The 1.0f affects the alpha value of the colour, reduce its value to introduce translucency.
+void main()
+{             
+    float depthValue = texture(depthMap, TextureCoords).r;
+    colour = vec4(vec3(depthValue), 1.0f); // orthographic
+}

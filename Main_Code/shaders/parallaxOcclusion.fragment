@@ -1,0 +1,106 @@
+#version 330 core
+// Created By Jonathan McChesney
+
+// Output vector fragment colour - whats returned at the end
+out vec4 FragmentColour;
+
+// Interface Block - named the same as the vertex shader Interface block
+// The relevant vectors are passed in from the Parallax vertex shader
+in VS_OUT {
+    vec3 FragmentPosition, TangentSpaceLightPosition, TangentSpaceViewPosition, TangentSpaceFragmentPosition;
+    vec2 TextureCoords;
+} fs_in;
+
+// Various uniforms used thoughout this shader
+uniform sampler2D specularMap, diffuseMap, normalMap, depthMap;
+uniform bool parallax;
+uniform float height_scale; // Changes parallax height/depth
+
+// Method for calculating the parallax map dispacement - passing the texture coordinates and view direction as params.
+// as this is parallax occlusion mapping - similar to steep parallax mapping we take a a number of layers
+// to test the depth against - using abs (returns the absolute value) dot product to find the number of layers. 
+vec2 ParallaxMapping(vec2 textureCoords, vec3 viewDirection)
+{ 
+    const float minimumLayers = 100, maximumLayers = 200; // set to 10 and 20 as default, better visual results the larger the number we pick
+    float numberOfLayers = mix(maximumLayers, minimumLayers, abs(dot(vec3(0.0, 0.0, 1.0), viewDirection)));  
+
+	vec2  currentTextureCoords = textureCoords; // set up a current texture coords vector as we cannot simply use the fs_in.TextureCoords
+    float currentDepthMapValue = texture(depthMap, currentTextureCoords).r;
+    float currentLayerDepthValue = 0.0; // init to 0
+
+    float layerDepthValue = 1.0/numberOfLayers; // good layer depth to start at
+
+    vec2 scaledVector = viewDirection.xy / viewDirection.z * height_scale; // scale accordingly using the height
+    vec2 adjustedTextureCoords = scaledVector / numberOfLayers; // account for this in the adjusted coordinates
+  
+	// This allows us to continually check the current layer depth agains the current value stored in the depth map,
+	// If the current layer depth is less than the depth map value then we decrease the the current texture coordinate value by
+	// the adjusted tex value (remember this is the scaled vector (view direction xy components divided by the z, all multipled by the height scale value) divided by the total number of layers).
+	// We then set our new current depth map value to the value in the depth map at location given by the current texture coordinates.
+	// Finally we then add the layer depth value (1 divided by total number of layers) to the current layer depth value.
+    // Essentially we are iterating over each depth layer, and when we find an offset tex value that returns below the displaced surface
+	// then the new offset is subtracted from the frags tex coordinates - works well with complex surfaces.
+	while(currentLayerDepthValue < currentDepthMapValue)
+    {
+        currentTextureCoords -= adjustedTextureCoords;
+        currentDepthMapValue = texture(depthMap, currentTextureCoords).r;  
+        currentLayerDepthValue += layerDepthValue;  
+    }
+    
+	// We update our previous texture coordinates with the combination of our curent texture coordinates and the adjusted coordinates value
+    vec2 prevTextureCoords = currentTextureCoords + adjustedTextureCoords;
+
+	// This is what makes steep/ parallax occlusion mapping so impressive - testing before and after the collision (occlusion) is detected (i.e. when the sampled depth is below the map)
+	// We then create a float - which is found by taking the linear interpolation of how far the surface height is from the depth layer value is of both the layers.
+	// NExt we use this to find our final texture coordinates in which we return to the main method.
+    float afterDepthCollision  = currentDepthMapValue - currentLayerDepthValue;
+    float beforeDepthCollision = texture(depthMap, prevTextureCoords).r + layerDepthValue - currentLayerDepthValue;
+    float weighting = afterDepthCollision / (afterDepthCollision - beforeDepthCollision);
+
+    vec2 finalTextureCoords = prevTextureCoords * weighting + currentTextureCoords * (1.0 - weighting);
+
+    return finalTextureCoords;
+}
+
+// In the main method of the Parralax fragment we can achieve some nice results.
+// First we instantiate our view direction to a unit vector through normalizing (vectors from the interface block sent by the vertex shader) & set the tex coords similarly
+// A boolean check is performed (if parralax mapping is applied) then we set the texture coordinates to the adjusted value returned from the parallax mapping method
+// If the values fall outside of the visible/default range then we discard (removes edge artefacts).
+// The normal vector is calculated by taking the value of the tex coords in the nomal map (the adjused value of course), it is then normalised accordingly to return a unit vector in an appropriate range.
+// The same occurs for the colour vector. Ambient lighting is set up to ensure its never entirely dark  - unrealistic & not aesthetically pleasing.
+void main()
+{           
+    vec3 viewDirection = normalize(fs_in.TangentSpaceViewPosition - fs_in.TangentSpaceFragmentPosition);
+    vec2 textureCoords = fs_in.TextureCoords;
+    
+	if(parallax) textureCoords = ParallaxMapping(fs_in.TextureCoords,  viewDirection);
+        
+    if(textureCoords.x > 1.0 || textureCoords.y > 1.0 || textureCoords.x < 0.0 || textureCoords.y < 0.0)
+        discard;
+
+    vec3 normal = texture(normalMap, textureCoords).rgb;
+    normal = normalize(normal * 2.0 - 1.0);   
+   
+    vec3 colour = texture(diffuseMap, textureCoords).rgb;
+    vec3 ambient = 0.1 * colour;
+
+	// The light direction vector is set here, converting the difference between the light position and fragment position (passed in through the interface block) in tangent space.
+	// The diffuse colour is then calculated by returning the max (or use clamp) of the dot prodict between the light direction and the normal. This is then multiplied by the colour vector - mapped colour.
+	// The reflection direction and halfway direction are then calculated to be used within the calculations for the specular component (blinn-Phong), taking the power of the max of the dot product between
+	// the normal and halfway direction respectively, finally multiplying by a vector to ensure consistency and better aesthetics.
+	// Finally return the combination of all these colour components as the fragment colour.
+    
+	vec3 lightDirection = normalize(fs_in.TangentSpaceLightPosition - fs_in.TangentSpaceFragmentPosition);
+    // float diffuse = max(dot(lightDirection, normal), 0.0); // alternative
+	float diffuse = clamp(dot(lightDirection, normal), 0.0,1.0f);
+    vec3 newDiffuse = diffuse * colour;
+
+    vec3 reflectionDirection = reflect(-lightDirection, normal);
+    vec3 halfwayDirection = normalize(lightDirection + viewDirection);  
+    float specular = pow(max(dot(normal, halfwayDirection), 0.0), 32.0);
+
+    vec3 newSpecular = vec3(0.33) * specular;
+	// vec3 newSpecular = texture(specularMap, textureCoords).rgb * vec3(0.2) * specular;
+
+    FragmentColour = vec4(ambient + newDiffuse + newSpecular, 1.0f);
+}

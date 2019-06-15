@@ -1,0 +1,11 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Output
+out vec4 colour;
+
+// Set the colour to all white
+void main()
+{
+    colour = vec4(1.0f); 
+}

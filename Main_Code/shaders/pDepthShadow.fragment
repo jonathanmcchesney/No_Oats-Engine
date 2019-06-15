@@ -1,0 +1,18 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Inputs
+in vec4 FragmentPosition;
+
+// Uniforms
+uniform vec3 lightPos;
+uniform float far_plane;
+
+// First we find the distance between the fragment position and the input light position, then map it to the range [0,1] as appropriate.
+// Finally we use this as the fragment depth in the built in func gl_FragDepth.
+void main()
+{
+    float lightDistance = length(FragmentPosition.xyz - lightPos);
+    lightDistance = lightDistance / far_plane; // map to range [0,1]
+    gl_FragDepth = lightDistance;
+}

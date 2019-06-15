@@ -1,0 +1,20 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Layout Qualifier
+layout (location = 0) in vec3 position;
+
+// Output
+out vec3 TextureCoords;
+
+// Input
+uniform mat4 projection, view;
+
+// We calculate the position vector by multiplying the projection and view matrix together along with a vec4 of ((position = xyz) & (1.0f = w))
+// the gl_position is calculated by using the position vectors xyzw components. The texture coordinates use the relevant position vector input.
+void main()
+{
+    vec4 PosVector = projection * view * vec4(position, 1.0);
+    gl_Position = PosVector.xyww;
+    TextureCoords = position;
+}

@@ -1,0 +1,16 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Layout Qualifiers
+layout (location = 0) in vec3 position;
+layout (location = 1) in vec2 textureCoords;
+
+// Outputs
+out vec2 TextureCoords;
+
+// Simply set the gl_position to a vec4 of the position and 1.0f for the w component. Set the texture coordinates also accordingly.
+void main()
+{
+    gl_Position = vec4(position, 1.0f);
+    TextureCoords = textureCoords;
+}

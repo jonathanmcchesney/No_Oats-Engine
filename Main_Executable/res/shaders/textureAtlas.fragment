@@ -1,0 +1,19 @@
+#version 330 core
+
+//Created by Erin Hughes
+
+//input
+in vec2 TexCoords;
+
+//output
+out vec4 colour;
+
+//uniform
+uniform sampler2D currentFrame;
+
+//main function
+void main()
+{
+	//set the colour of the atlas to the input texture coordinates
+	colour = texture(currentFrame, TexCoords);
+} 

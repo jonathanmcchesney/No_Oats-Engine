@@ -1,0 +1,20 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Inputs
+in vec2 TextureCoords;
+
+// Outputs
+out vec4 colour;
+
+// Uniforms
+uniform sampler2D tex;
+uniform vec3 textColor; // this is referenced in text.cpp
+
+// We set the sampled value to a vec4 with xyz set to 1.0f and the w component set to the texture coordinates
+// From here we can set the colour to the text colour (with w as 1.0f) times the sampled value.
+void main()
+{    
+    vec4 sampledValue = vec4(1.0, 1.0, 1.0, texture(tex, TextureCoords).r);
+    colour = vec4(textColor, 1.0) * sampledValue;
+}  

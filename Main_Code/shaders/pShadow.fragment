@@ -1,0 +1,82 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Layout Qualifiers - Inputs
+in VS_OUT 
+{
+    vec3 FragmentPosition, Normal;
+    vec2 TextureCoords;
+} fs_in;
+
+// Outputs
+out vec4 FragmentColour;
+
+// Uniforms
+uniform sampler2D diffuseTexture;
+uniform samplerCube depthMap;
+uniform float far_plane;
+uniform bool shadows;
+uniform vec3 lightPos, viewPos;
+
+// These offset values are created so that we can reduce the aliasing effect (PCF partial solution) caused by multiple samples arond the fragment and taking an average.
+// These offset values allow us to generate an even distribution around the sampled fragment
+vec3 offsetValues[20] = vec3[]
+(
+   vec3(1, 1, 1), vec3(1,-1, 1), vec3(-1,-1, 1), vec3(-1, 1,1), 
+   vec3(1, 1,-1), vec3(1,-1,-1), vec3(-1,-1,-1), vec3(-1,1,-1),
+   vec3(1, 1, 0), vec3(1,-1, 0), vec3(-1,-1, 0), vec3(-1, 1,0),
+   vec3(1, 0, 1), vec3(-1,0, 1), vec3(1, 0, -1), vec3(-1,0,-1),
+   vec3(0, 1, 1), vec3(0,-1, 1), vec3(0,-1, -1), vec3(0, 1,-1)
+);
+
+// We begin by calculating our fragment to light vector, i.e. the distance the light is from the fragments position.
+// The current depth value stored in our depth buffer is calculated by finding the length of the fragment to light vector, as well as instantiating the bias and shadow floats (base values).
+// We have a total of 20 sample values as this is a cost efficient number that gives nice resukts. Finally finding the view distance and offset radius in which we use to calculate the new closest depth value
+// for all our offsets, finally averaging the result. Note that if the closest depth value is greater than the current depth minus the bias then we consider the fragment to be in shadow.
+// We end this calculation by returning the averaged shadow value.
+float CalculateShadow(vec3 fragmentPosition)
+{
+    vec3 fragmentToLightVector = fragmentPosition - lightPos;
+    float currentDepthValue = length(fragmentToLightVector), shadow = 0.0, bias = 0.17;
+    int sampleNumber = 20;
+    float viewDistance = length(viewPos - fragmentPosition);
+    float offsetRadius = (1.0 + (viewDistance / far_plane)) / 25.0;
+    for(int i = 0; i < sampleNumber; ++i)
+    {
+        float closestDepthValue = texture(depthMap, fragmentToLightVector + offsetValues[i] * offsetRadius).r;
+        closestDepthValue *= far_plane;   
+        if(currentDepthValue - bias > closestDepthValue)
+            shadow += 1.0;
+    }
+    shadow /= float(sampleNumber);
+                
+    return shadow;
+}
+
+// This is the main of the point shadow fragment shader.
+// We begin by setting the colour from the diffuse texture map, nomralising the input normal and setting the basecolour/ambient component.
+// Next we set our appropriate light direction (the difference between the light position and fragment input position) and us it to calculate the diffuse component (the dot product of the lDir and normal - max with 0).
+// We then calculate the view direction and to be used within the specular calculation along with the halfway direction (normalised combination of the light and view direction - unit vector).
+// We then use the conditional if statement to decide whether the fragment is in shadow or not and add this component to the colour component. Finally sending on our fragment colour as the output. 
+void main()
+{           
+    vec3 colour = texture(diffuseTexture, fs_in.TextureCoords).rgb;
+    vec3 normal = normalize(fs_in.Normal);
+    vec3 baseColour = vec3(0.3);
+    vec3 ambient = 0.3 * colour;
+
+    vec3 lightDirection = normalize(lightPos - fs_in.FragmentPosition);
+    float diffuse = max(dot(lightDirection, normal), 0.0);
+    vec3 newDiffuse = diffuse * baseColour;
+
+    vec3 viewDirection = normalize(viewPos - fs_in.FragmentPosition);
+    float specular = 0.0;
+    vec3 halfwayDirection = normalize(lightDirection + viewDirection);  
+    specular = pow(max(dot(normal, halfwayDirection), 0.0), 64.0);
+    vec3 newSpecular = specular * baseColour;    
+
+    float shadow = shadows ? CalculateShadow(fs_in.FragmentPosition) : 0.0;                      
+    vec3 lighting = (ambient + (1.0 - shadow) * (newDiffuse + newSpecular)) * colour;    
+    
+    FragmentColour = vec4(lighting, 1.0f);
+}

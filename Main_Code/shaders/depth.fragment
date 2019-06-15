@@ -1,0 +1,34 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Inputs
+in vec2 TextureCoords;
+
+// Outputs
+out vec4 colour;
+
+// Uniforms
+uniform sampler2D tex;
+
+// Floats - no types attached (i.e. unfiorm, variable etc)
+float nearPlane = 1.0, farPlane  = 100.0; 
+  
+// This method is for finding the liner depth, passing a float as a parameter. The zvalue (i.e. the depth)
+// is found by taking the passed in depth value and calculating the normalized device coordinates:
+// The lower left corner corresponds to (0,0), and the upper right corner corresponds to (1,1). 
+// finallt we return the linearized result of the depth value between the near and far plane.
+float LinearDepth(float depthValue) 
+{
+	// apply the inverse transformation to retrieve the linear depth value
+    float zValue = depthValue * 2.0 - 1.0; // Normalized device coords 
+    return (2.0 * nearPlane* farPlane) / (zValue *(farPlane - nearPlane) - (farPlane + nearPlane)); // linearize the depth values returning depth values between near and far plane
+}
+
+// The depth value is set to the returned value of the linearized depth of the gl_Fragcoords z component
+// divided by the far plane. The colour is then calculated accordingly with the w component set to 1.0f.
+void main()
+{             
+    float depthValue = LinearDepth(gl_FragCoord.z) / farPlane; // Relative to
+    colour = vec4(vec3(depthValue), 1.0f);
+	colour += texture(tex, TextureCoords);
+}

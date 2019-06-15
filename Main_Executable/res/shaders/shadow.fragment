@@ -1,0 +1,96 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Interface Block - Inputs
+in VS_OUT 
+{
+    vec3 FragmentPosition, Normal;
+    vec2 TextureCoords;
+    vec4 FragmentPositionTangentSpace;
+} fs_in;
+
+// Outputs
+out vec4 FragmentColour;
+
+// Uniforms
+uniform sampler2D diffuseTexture, shadowMap;
+uniform vec3 lightPos, viewPos;
+uniform bool shadows;
+
+// In this method we calculate the shadow component:-
+// We calculate the projection coordinates first by dividing the tangent space frag position by the w component - perspective divide.
+// With this value we then have to transform into the range of [0,1] (Normalised device coordinates) as follows:
+// Then we get the current depth of the fragment from the lights point of view (perspective),
+// the normal is calculated as per usual (taking the input from the interface block and normalising to a unit vector) as well as
+// calculating the light direction by normalising the difference between the light position and the input fragment position.
+// An offset (otherwise called a shadow bias) is calculated to ensure that all samples get a depth smaller than the surfaces depth.
+// This is found by taking the max of the bias value of 0.05 multiplied with the result of a deduction from 1 of the dot product of the normal
+// and light direction, with a min bias value pf 0.005 (these values are tweaked to reduce aliasing and peter-panning).
+float ShadowCalculation(vec4 FragmentPositionTangentSpace)
+{
+    vec3 projectionCoordinates = FragmentPositionTangentSpace.xyz / FragmentPositionTangentSpace.w;
+    projectionCoordinates = projectionCoordinates * 0.5 + 0.5; // convert to NDC
+
+    float currentDepthValue = projectionCoordinates.z;
+
+    vec3 normal = normalize(fs_in.Normal);
+    vec3 lightDirection = normalize(lightPos - fs_in.FragmentPosition);
+
+    float offset = max(0.05 * (1.0 - dot(normal, lightDirection)), 0.005);
+    float shadow = 0.0;
+
+	// PCF:- Percentage Closer Filtering - sampling more than once from the depth map each time with slightly altered texture coordinates.
+	// We calculate the texel size because depth map has a fixed resolution and as a result the depth occurs across more than one fragment per texel value.
+	// i.e. multiple fragments sample the depth and end up making similar conclusions which result in sharp jagged edges that arent smooth (aesthetically pleasing).
+	// We find the texel size by diving the texture size (width and height of the sample texture on mip map level 1) - i.e. a single texel size, used to offset.
+	// We sample a total of 9 times around the projected coordinates x & y values and against each value test for shadow occlusion - averaging the results over sample totals.
+    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    for(int x = -1; x <= 1; ++x) 
+    {
+        for(int y = -1; y <= 1; ++y)
+        {
+            float percentageCloserFilterDepth = texture(shadowMap, projectionCoordinates.xy + vec2(x, y) * texelSize).r; 
+            shadow += currentDepthValue - offset > percentageCloserFilterDepth  ? 1.0 : 0.0;        
+        }    
+    }
+    shadow /= 9.0;
+    
+	// Oversampling Solution:
+	// Force shadows to 0.0 when the projected depth is larger than 1.0f.
+    if(projectionCoordinates.z > 1.0)
+        shadow = 0.0;
+        
+    return shadow;
+}
+
+// As usual we calculte our base colour using the input texture coordinates and sample the diffuse texture map as appropriate.
+// The normal is calculated by normalising (converting to a unit vector) the input normal, a const vec3 acts as our light colour,
+// along with an ambient component which is the product of the base colour multipled by a constant.
+// The light direction vector is found by normalising the difference between the light position and the input fragment position,
+// this is used to calculate the diffuse component (using the dot product of the light direction and normal) - max insures that its always a value above 0.
+// We multiply this diffuse component by the diffuse component as appropriate.
+// The view position is calculated similar to the light direction (using the viewPos instead), this is used along with the halfway vector to find the specular component.
+// We then use our shadowCalculations method (? = conditional operator) along with the min func to ensure more plausible shadows are generated under the correct circumstances.
+// The output fragment colour is caculated as normal by adding up and multiplying the components as appropriately.
+void main()
+{           
+    vec3 baseColour = texture(diffuseTexture, fs_in.TextureCoords).rgb;
+    vec3 normal = normalize(fs_in.Normal);
+    vec3 lightColour = vec3(0.4);
+    vec3 ambient = 0.25 * baseColour;
+
+    vec3 lightDirection = normalize(lightPos - fs_in.FragmentPosition);
+    float diffuse = max(dot(lightDirection, normal), 0.0);
+    vec3 newDiffuse = diffuse * lightColour;
+
+    vec3 viewDirection = normalize(viewPos - fs_in.FragmentPosition);
+    float specular = 0.0;
+    vec3 halfwayDirection = normalize(lightDirection + viewDirection);  
+    specular = pow(max(dot(normal, halfwayDirection), 0.0), 64.0);
+    vec3 newSpecular = specular * lightColour;    
+
+    float shadow = shadows ? ShadowCalculation(fs_in.FragmentPositionTangentSpace) : 0.0;                      
+    shadow = min(shadow, 0.75); 
+    
+    FragmentColour = vec4(vec3((ambient + (1.0 - shadow) * (newDiffuse + newSpecular)) * baseColour), 1.0f);
+}

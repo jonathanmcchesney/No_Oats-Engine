@@ -1,0 +1,15 @@
+#version 330 core
+// Created By Jonathan McChesney
+ 
+// Layout Qualifiers
+layout (location = 0) in vec3 position;
+
+// Uniforms - MVP matrix
+uniform mat4 model, view, projection;
+
+// Calculate the gl_position using the MVP matrix and then multiplying this with the vec4 of the xyz of the position vector
+// and the w component initialising to 1.0f as a result.
+void main()
+{
+    gl_Position = (projection * view * model) * vec4(position, 1.0f);
+}
